@@ -3,7 +3,10 @@ name = "clipapp-engine"
 version = "0.0.1"
 description = "Local processing engine for ClipApp"
 requires-python = "==3.12.*"
-dependencies = ["typer>=0.12"]
+dependencies = [
+    "pydantic>=2.10",
+    "typer>=0.12",
+]
 
 [project.scripts]
 clipapp-engine = "clipapp_engine.cli:app"

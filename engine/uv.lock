@@ -69,6 +69,7 @@ name = "clipapp-engine"
 version = "0.0.1"
 source = { editable = "." }
 dependencies = [
+    { name = "pydantic" },
     { name = "typer" },
 ]
 
@@ -80,7 +81,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "typer", specifier = ">=0.12" }]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2.10" },
+    { name = "typer", specifier = ">=0.12" },
+]
 
 [package.metadata.requires-dev]
 dev = [
