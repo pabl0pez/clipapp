@@ -58,6 +58,8 @@ Engine (run from `engine/`):
 - Lint: `uv run ruff check .` and `uv run ruff format --check .`
 - Types: `uv run mypy`
 - CLI: `uv run clipapp-engine --help`, `uv run clipapp-engine doctor [--json]`
+- Export clips: `uv run clipapp-engine clip <video> --start 2:00 --end 2:35 -o out/` or
+  `uv run clipapp-engine batch <video> --clips clips.txt -o out/` (lines: `start end name`)
 - Slow tests (real model, need `samples/voz.wav`): `uv run pytest -m slow`
 - Sample media: `uv run python ../scripts/make_samples.py`
 - Subtitle previews (one PNG per template/aspect in `samples/previews/`): `uv run python ../scripts/preview_styles.py [--video f.mkv]`

@@ -5,6 +5,7 @@ import sys
 import threading
 from collections import deque
 from collections.abc import Callable, Iterable
+from pathlib import Path
 
 from clipapp_engine.config import ffmpeg_path
 from clipapp_engine.media.errors import FFmpegCancelledError, FFmpegError
@@ -38,12 +39,13 @@ def _pump_lines(
             on_line(line)
 
 
-def run_ffmpeg(
+def run_ffmpeg(  # noqa: PLR0913, PLR0917
     args: list[str],
     duration_s: float,
     on_progress: Callable[[float], None] | None = None,
     cancel_event: threading.Event | None = None,
     on_stderr_line: Callable[[str], None] | None = None,
+    cwd: Path | None = None,
 ) -> None:
     """Run ffmpeg to completion, reporting progress and honoring cancellation.
 
@@ -55,6 +57,7 @@ def run_ffmpeg(
         cancel_event: When set, ffmpeg is terminated (killed after 3 s if still alive).
         on_stderr_line: Called from a reader thread with every stderr line (newline stripped),
             for filters that log results there (e.g. ``silencedetect``).
+        cwd: Working directory, so filter options can use simple relative file names.
 
     Raises:
         FFmpegCancelledError: the run was cancelled.
@@ -79,6 +82,7 @@ def run_ffmpeg(
             encoding="utf-8",
             errors="replace",
             creationflags=NO_WINDOW,
+            cwd=cwd,
         )
     except OSError as exc:
         raise FFmpegError(f"ffmpeg could not start: {exc}") from exc

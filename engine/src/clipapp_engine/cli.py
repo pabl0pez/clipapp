@@ -6,9 +6,10 @@ import time
 import wave
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
+from pydantic import ValidationError
 from rich.console import Console
 from rich.markup import escape
 from rich.progress import Progress
@@ -16,7 +17,10 @@ from rich.table import Table
 
 from clipapp_engine.config import data_dir
 from clipapp_engine.doctor import run_doctor
+from clipapp_engine.export.clip import ClipOptions
+from clipapp_engine.export.clips_file import ClipsFileError, ClipSpec, parse_clips_file, parse_time
 from clipapp_engine.export.full import RenderOptions, render_without_silences
+from clipapp_engine.export.pipeline import export_clip
 from clipapp_engine.media.audio import extract_track_wav
 from clipapp_engine.media.encoders import EncoderError, save_encoder_cache
 from clipapp_engine.media.errors import MediaError
@@ -393,3 +397,187 @@ def subs_cmd(  # noqa: PLR0913, PLR0917
         err.print(f"[red]error:[/] {escape(str(exc))}")
         raise typer.Exit(1) from exc
     typer.echo(str(output))
+
+
+AspectOpt = Annotated[str, typer.Option("--aspect", help="9:16 (1080x1920) or 16:9.")]
+CropModeOpt = Annotated[str, typer.Option("--crop-mode", help="9:16 framing: crop or blur.")]
+CropXOpt = Annotated[float, typer.Option("--crop-x", help="Crop position: 0 left, 1 right.")]
+StyleOpt = Annotated[str, typer.Option("--style", help="Subtitle template, or none.")]
+MicOpt = Annotated[int, typer.Option("--track-mic", help="0-based mic track.")]
+GameOpt = Annotated[int, typer.Option("--track-game", help="0-based game track.")]
+MicVolOpt = Annotated[float, typer.Option("--mic-volume")]
+GameVolOpt = Annotated[float, typer.Option("--game-volume")]
+NormOpt = Annotated[bool, typer.Option("--normalize/--no-normalize", help="Loudnorm -14 LUFS.")]
+EncoderOpt = Annotated[str | None, typer.Option("--encoder", help="Force an FFmpeg encoder.")]
+GlossaryOpt = Annotated[
+    Path | None,
+    typer.Option("--glossary", help='JSON file: {"terms": [...], "replacements": {...}}.'),
+]
+OutDirOpt = Annotated[Path, typer.Option("-o", "--output", help="Output folder.")]
+
+
+def _fail(message: str, code: int = 2) -> typer.Exit:
+    Console(stderr=True).print(f"[red]error:[/] {escape(message)}")
+    return typer.Exit(code)
+
+
+def _clip_settings(  # noqa: PLR0913, PLR0917
+    aspect: str,
+    crop_mode: str,
+    crop_x: float,
+    style: str,
+    track_mic: int,
+    track_game: int,
+    mic_volume: float,
+    game_volume: float,
+    normalize: bool,
+    encoder: str | None,
+) -> dict[str, Any]:
+    """Validate the options shared by ``clip`` and ``batch``; return ClipOptions fields."""
+    if style != "none" and style not in TEMPLATES:
+        raise _fail(f"unknown style {style} (choose {', '.join(TEMPLATES)} or none)")
+    settings: dict[str, Any] = {
+        "aspect": aspect,
+        "crop_mode": crop_mode,
+        "crop_x": crop_x,
+        "style": TEMPLATES.get(style),
+        "mic_track": track_mic,
+        "game_track": track_game,
+        "mic_volume": mic_volume,
+        "game_volume": game_volume,
+        "normalize": normalize,
+        "encoder": encoder,
+    }
+    try:
+        ClipOptions(start_s=0, end_s=0, **settings)
+    except ValidationError as exc:
+        raise _fail(str(exc)) from exc
+    return settings
+
+
+def _export_all(
+    file: Path,
+    clips: list[ClipSpec],
+    settings: dict[str, Any],
+    out_dir: Path,
+    glossary: Path | None,
+) -> None:
+    """Export each clip; a failure is reported and the next clip still runs."""
+    err = Console(stderr=True)
+    try:
+        terms = (
+            Glossary.model_validate_json(glossary.read_text(encoding="utf-8"))
+            if glossary
+            else Glossary()
+        )
+    except (OSError, ValueError) as exc:
+        raise _fail(f"glossary: {exc}") from exc
+    choice = pick_device() if settings["style"] is not None else None
+    table = Table(title="Clips")
+    for col in ("#", "clip", "result"):
+        table.add_column(col)
+    failed = 0
+    with Progress(console=err, transient=True) as bar:
+        task = bar.add_task("", total=1.0)
+        for i, spec in enumerate(clips, 1):
+            bar.reset(task, description=f"{i}/{len(clips)} {escape(spec.name)}")
+            began = time.perf_counter()
+            try:
+                out = export_clip(
+                    file,
+                    ClipOptions(start_s=spec.start_s, end_s=spec.end_s, **settings),
+                    out_dir,
+                    spec.name,
+                    terms,
+                    choice,
+                    lambda p: bar.update(task, completed=p),
+                    on_warning=lambda msg: err.print(f"[yellow]warning:[/] {escape(msg)}"),
+                )
+                result = f"[green]ok[/] {escape(str(out))} ({time.perf_counter() - began:.0f} s)"
+            except (*_ANALYSIS_ERRORS, RuntimeError) as exc:
+                failed += 1
+                result = f"[red]failed:[/] {escape(str(exc).strip())}"
+            table.add_row(str(i), escape(spec.name), result)
+    Console().print(table)
+    Console().print(f"{len(clips) - failed} exported, {failed} failed")
+    if failed:
+        raise typer.Exit(1)
+
+
+@app.command("clip")
+def clip_cmd(  # noqa: PLR0913, PLR0917
+    file: Annotated[Path, typer.Argument(help="Recording to cut.")],
+    start: Annotated[str, typer.Option("--start", help="Start: seconds or mm:ss.")],
+    end: Annotated[str, typer.Option("--end", help="End: seconds or mm:ss.")],
+    output: OutDirOpt = Path(),
+    name: Annotated[str | None, typer.Option("--name", help="Clip name for the file.")] = None,
+    aspect: AspectOpt = "9:16",
+    crop_mode: CropModeOpt = "crop",
+    crop_x: CropXOpt = 0.5,
+    style: StyleOpt = "shorts",
+    track_mic: MicOpt = 1,
+    track_game: GameOpt = 2,
+    mic_volume: MicVolOpt = _RENDER.mic_volume,
+    game_volume: GameVolOpt = _RENDER.game_volume,
+    normalize: NormOpt = True,
+    encoder: EncoderOpt = None,
+    glossary: GlossaryOpt = None,
+) -> None:
+    """Export one clip (15-60 s) as MP4 with burned subtitles."""
+    settings = _clip_settings(
+        aspect,
+        crop_mode,
+        crop_x,
+        style,
+        track_mic,
+        track_game,
+        mic_volume,
+        game_volume,
+        normalize,
+        encoder,
+    )
+    try:
+        start_s, end_s = parse_time(start), parse_time(end)
+    except ValueError as exc:
+        raise _fail(str(exc)) from exc
+    clip_name = name or f"{start.replace(':', '.')}-{end.replace(':', '.')}"
+    _export_all(file, [ClipSpec(0, start_s, end_s, clip_name)], settings, output, glossary)
+
+
+@app.command("batch")
+def batch_cmd(  # noqa: PLR0913, PLR0917
+    file: Annotated[Path, typer.Argument(help="Recording to cut.")],
+    clips: Annotated[Path, typer.Option("--clips", help="Lines of: start end name.")],
+    output: OutDirOpt = Path(),
+    aspect: AspectOpt = "9:16",
+    crop_mode: CropModeOpt = "crop",
+    crop_x: CropXOpt = 0.5,
+    style: StyleOpt = "shorts",
+    track_mic: MicOpt = 1,
+    track_game: GameOpt = 2,
+    mic_volume: MicVolOpt = _RENDER.mic_volume,
+    game_volume: GameVolOpt = _RENDER.game_volume,
+    normalize: NormOpt = True,
+    encoder: EncoderOpt = None,
+    glossary: GlossaryOpt = None,
+) -> None:
+    """Export every clip listed in a clips file (validated as a whole before starting)."""
+    settings = _clip_settings(
+        aspect,
+        crop_mode,
+        crop_x,
+        style,
+        track_mic,
+        track_game,
+        mic_volume,
+        game_volume,
+        normalize,
+        encoder,
+    )
+    try:
+        specs = parse_clips_file(clips.read_text(encoding="utf-8-sig"), probe(file).duration_s)
+    except ClipsFileError as exc:
+        raise _fail(f"{clips}:\n{exc}") from exc
+    except (OSError, MediaError) as exc:
+        raise _fail(str(exc), 1) from exc
+    _export_all(file, specs, settings, output, glossary)
