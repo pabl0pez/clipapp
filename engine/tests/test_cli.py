@@ -48,3 +48,20 @@ def test_silence_bad_track(av_sample: Path) -> None:
     result = CliRunner().invoke(app, ["silence", str(av_sample), "--track", "9"])
     assert result.exit_code == 1
     assert "not found" in result.output
+
+
+def test_render(av_sample: Path, tmp_path: Path) -> None:
+    out = tmp_path / "salida.mp4"
+    args = ["render", str(av_sample), "--track-mic", "1", "--track-game", "2", "-o", str(out)]
+    result = CliRunner().invoke(app, [*args, "--encoder", "libx264"])
+    assert result.exit_code == 0, result.output
+    assert out.is_file()
+    assert "encoder: libx264" in result.stdout
+    assert "cuts" in result.stdout
+
+
+def test_render_unusable_encoder(av_sample: Path, tmp_path: Path) -> None:
+    args = ["render", str(av_sample), "-o", str(tmp_path / "x.mp4"), "--encoder", "nope"]
+    result = CliRunner().invoke(app, args)
+    assert result.exit_code == 1
+    assert "Unknown encoder" in result.output
