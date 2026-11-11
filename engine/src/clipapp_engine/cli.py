@@ -19,6 +19,7 @@ from clipapp_engine.export.full import RenderOptions, render_without_silences
 from clipapp_engine.media.audio import extract_track_wav
 from clipapp_engine.media.encoders import EncoderError, save_encoder_cache
 from clipapp_engine.media.errors import MediaError
+from clipapp_engine.media.prepare import Manifest, prepare
 from clipapp_engine.media.probe import probe
 from clipapp_engine.silence.detect import detect_silences, wav_duration_s
 from clipapp_engine.silence.noise import ThresholdSuggestion, suggest_threshold
@@ -248,3 +249,34 @@ def render_cmd(  # noqa: PLR0913, PLR0917
     console = Console()
     _print_analysis(console, result)
     console.print(f"encoder: [bold]{used}[/] -> {escape(str(output))}")
+
+
+@app.command("prepare")
+def prepare_cmd(
+    file: Annotated[Path, typer.Argument(help="Recording to prepare for the UI.")],
+    track_mic: int = typer.Option(1, "--track-mic", help="0-based mic track (OBS mic track = 1)."),
+    force: bool = typer.Option(False, "--force", help="Rebuild every cached file."),
+) -> None:
+    """Build the proxy, waveform and thumbnails the UI uses, then print their sizes."""
+    err = Console(stderr=True)
+    try:
+        with Progress(console=err, transient=True) as bar:
+            task = bar.add_task("Preparing", total=1.0)
+            manifest_file = prepare(
+                file,
+                track_mic,
+                lambda step, p: bar.update(task, description=step, completed=p),
+                force,
+            )
+    except (*_ANALYSIS_ERRORS, EncoderError) as exc:
+        err.print(f"[red]error:[/] {escape(str(exc))}")
+        raise typer.Exit(1) from exc
+
+    manifest = Manifest.model_validate_json(manifest_file.read_text(encoding="utf-8"))
+    table = Table(title=escape(str(manifest_file.parent)))
+    table.add_column("File")
+    table.add_column("Size", justify="right")
+    for name in (manifest.wav, manifest.waveform, manifest.proxy, manifest.sprite):
+        size = (manifest_file.parent / name).stat().st_size
+        table.add_row(name, f"{size / 1024**2:.2f} MiB")
+    Console().print(table)

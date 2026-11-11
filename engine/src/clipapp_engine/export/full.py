@@ -58,7 +58,7 @@ def snap_ranges(ranges: list[Range], fps: Fraction) -> list[FrameRange]:
     return [(a, b) for a, b in snapped if b > a]
 
 
-def _audio_input(track: AudioTrack, label: str, volume: float) -> str:
+def audio_input(track: AudioTrack, label: str, volume: float) -> str:
     """Return the filter chain that turns one track into 48 kHz stereo at the given gain."""
     # Mono mic → both channels at full level (the default upmix would lower it by 3 dB).
     upmix = "pan=stereo|c0=c0|c1=c0," if track.channels == 1 else ""
@@ -87,8 +87,8 @@ def build_filtergraph(
     vfr = f"fps={fps}," if info.is_vfr else ""
     lines = [
         f"[0:v:0]{vfr}split={n}" + "".join(f"[v{i}]" for i in range(n)),
-        _audio_input(mic, "mic", options.mic_volume),
-        _audio_input(game, "game", options.game_volume),
+        audio_input(mic, "mic", options.mic_volume),
+        audio_input(game, "game", options.game_volume),
         "[mic][game]amix=inputs=2:normalize=0:duration=longest,"
         f"asplit={n}" + "".join(f"[a{i}]" for i in range(n)),
     ]
