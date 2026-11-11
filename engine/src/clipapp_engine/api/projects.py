@@ -31,8 +31,10 @@ from clipapp_engine.api.service import (
 from clipapp_engine.config import data_dir
 from clipapp_engine.db.database import Database
 from clipapp_engine.jobs.queue import JobQueue
+from clipapp_engine.media.errors import MediaNotFoundError
 from clipapp_engine.media.hashing import file_hash
 from clipapp_engine.media.probe import probe
+from clipapp_engine.media.runner import run_ffmpeg
 from clipapp_engine.silence.noise import ThresholdSuggestion, suggest_threshold
 from clipapp_engine.silence.settings import SilenceSettings
 
@@ -45,6 +47,7 @@ MEDIA_FILES = {
     "thumbnails": "sprite.jpg",
     "thumbnails/index": "thumbnails.json",
 }
+PREVIEW_S = 5.0
 
 
 def project_out(db: Database, project_id: int) -> Project:
@@ -139,6 +142,10 @@ def delete_project(project_id: int, db: DB, jobs: Jobs, hub: Hub) -> Response:
 
 
 def _requeue_prepare(db: Database, jobs: JobQueue, project_id: int) -> None:
+    # A prepare still queued or running works on the old mic track: drop it instead of waiting.
+    for job in _project_jobs(db, project_id):
+        if (row := jobs.get(job["id"])) is not None and row["kind"] == "prepare":
+            jobs.cancel(job["id"])
     db.execute(
         "UPDATE media_assets SET prepare_status = 'pending' WHERE project_id = ?", (project_id,)
     )
@@ -225,6 +232,32 @@ def get_thumbnails(project_id: int, db: DB) -> FileResponse:
 def get_thumbnails_index(project_id: int, db: DB) -> FileResponse:
     """Return the sprite layout JSON (interval, size, columns, rows, count)."""
     return _media_file(db, project_id, "thumbnails/index")
+
+
+@media_router.get("/projects/{project_id}/media/tracks/{track}/preview", tags=["media"])
+def get_track_preview(project_id: int, track: int, db: DB) -> FileResponse:
+    """Return 5 s of one audio track from the middle of the recording (AAC in M4A, cached)."""
+    media = media_row(db, project_id)
+    tracks = len(json.loads(media["audio_tracks"]))
+    if not 0 <= track < tracks:
+        raise NotFoundError(f"audio track {track} does not exist (0..{tracks - 1})")
+    out = Path(media["cache_dir"]) / f"preview_track{track}.m4a"
+    if not out.is_file():
+        source = Path(media["path"])
+        if not source.is_file():
+            raise MediaNotFoundError(f"File not found: {source}")
+        start = max(0.0, media["duration_s"] / 2 - PREVIEW_S / 2)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        part = out.with_name(out.name + ".part")
+        args = ["-ss", f"{start:.3f}", "-t", str(PREVIEW_S), "-i", str(source)]
+        args += ["-map", f"0:a:{track}", "-vn", "-c:a", "aac", "-b:a", "128k", "-f", "mp4"]
+        try:
+            run_ffmpeg([*args, str(part)], PREVIEW_S)
+        except BaseException:
+            part.unlink(missing_ok=True)
+            raise
+        part.replace(out)
+    return FileResponse(out, media_type="audio/mp4")
 
 
 @router.get("/projects/{project_id}/silence", tags=["silence"])

@@ -177,6 +177,27 @@ def test_media_range(client: TestClient, project: dict[str, Any]) -> None:
     assert client.get(f"/projects/{pid}/media/thumbnails/index").json()["count"] == 2
 
 
+def test_track_preview(client: TestClient, project: dict[str, Any]) -> None:
+    pid = project["id"]
+    r = client.get(f"/projects/{pid}/media/tracks/1/preview")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "audio/mp4"
+    assert b"ftyp" in r.content[:16]
+    assert (Path(project["media"]["cache_dir"]) / "preview_track1.m4a").is_file()
+    assert client.get(f"/projects/{pid}/media/tracks/9/preview").status_code == 404
+
+
+def test_mic_change_cancels_pending_prepare(tmp_path: Path, av_sample: Path) -> None:
+    app = create_app(TOKEN, tmp_path / "idle.db", start_worker=False)
+    with TestClient(app, headers={"X-ClipApp-Token": TOKEN}) as c:
+        pid = c.post("/projects", json={"path": str(av_sample)}).json()["id"]
+        first = last_job(c, "prepare", pid)
+        c.patch(f"/projects/{pid}", json={"mic_track": 0})
+        jobs = [j for j in c.get("/exports").json() if j["kind"] == "prepare"]
+        assert [j["status"] for j in jobs] == ["queued", "cancelled"]
+        assert jobs[1]["id"] == first["id"]
+
+
 def test_silence_keeps_unchanged_toggles(client: TestClient, project: dict[str, Any]) -> None:
     pid = project["id"]
     state = client.get(f"/projects/{pid}/silence").json()

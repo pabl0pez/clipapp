@@ -11,29 +11,41 @@
     "lint": "eslint . && prettier --check .",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
     "format": "prettier --write .",
-    "gen:api": "uv --directory ../engine run clipapp-engine openapi -o ../app/openapi.json && openapi-typescript openapi.json -o src/api/schema.ts && prettier --write src/api/schema.ts"
+    "gen:api": "uv --directory ../engine run clipapp-engine openapi -o ../app/openapi.json && openapi-typescript openapi.json -o src/api/schema.ts && prettier --write src/api/schema.ts",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.107.1",
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2.8.4",
+    "openapi-fetch": "^0.17.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "react-router": "^7.18.5",
+    "zustand": "^5.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.3.5",
     "@tauri-apps/cli": "^2",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.9",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.2",
     "eslint": "^10.14.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.14.0",
+    "jsdom": "^29.1.1",
+    "msw": "^3.0.5",
     "openapi-typescript": "^7.13.0",
     "prettier": "^3.9.10",
     "tailwindcss": "^4.3.5",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.72.2",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vitest": "^5.1.0"
   },
   "overrides": {
     "openapi-typescript": {

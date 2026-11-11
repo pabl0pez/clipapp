@@ -476,6 +476,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/projects/{project_id}/media/tracks/{track}/preview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Track Preview
+     * @description Return 5 s of one audio track from the middle of the recording (AAC in M4A, cached).
+     */
+    get: operations["get_track_preview_projects__project_id__media_tracks__track__preview_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2084,6 +2104,38 @@ export interface operations {
       header?: never;
       path: {
         project_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_track_preview_projects__project_id__media_tracks__track__preview_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: number;
+        track: number;
       };
       cookie?: never;
     };

@@ -68,7 +68,9 @@ Engine (run from `engine/`):
 - Subtitle previews (one PNG per template/aspect in `samples/previews/`): `uv run python ../scripts/preview_styles.py [--video f.mkv]`
 
 App (run from `app/`):
-- Dev: `npm run tauri dev`
+- Dev: start the engine by hand first (from `engine/`: `uv run clipapp-engine serve --port 8765 --token dev`,
+  matching `app/.env.development`), then `npm run tauri dev`
+- Tests: `npm test` (Vitest + Testing Library; the engine is mocked with MSW)
 - Lint: `npm run lint`
 - Typecheck: `npm run typecheck`
 - Format: `npm run format`

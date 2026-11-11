@@ -1,5 +1,25 @@
 @import "tailwindcss";
 
+/* Design tokens (Tailwind v4 keeps its theme config here): bg-surface, text-muted, outline-accent… */
+@theme {
+  --color-bg: #0d0f14;
+  --color-surface: #161922;
+  --color-surface-2: #1f2330;
+  --color-border: #2c3142;
+  --color-text: #e7e9ef;
+  --color-muted: #9aa1b2;
+  --color-accent: #8b6cff;
+  --color-accent-hover: #7a58f7;
+  --color-danger: #f0565b;
+  --color-success: #3cb179;
+  --color-warning: #f2a93b;
+}
+
 :root {
   color-scheme: dark;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
 }

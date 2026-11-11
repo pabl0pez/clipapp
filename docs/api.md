@@ -82,6 +82,7 @@ error `interrupted`.
 - `GET /projects/{project_id}/media/waveform`: Return the waveform peaks JSON (audiowaveform v2 format). → 200 `object`
 - `GET /projects/{project_id}/media/thumbnails`: Return the thumbnail sprite (JPG grid). → 200 `object`
 - `GET /projects/{project_id}/media/thumbnails/index`: Return the sprite layout JSON (interval, size, columns, rows, count). → 200 `object`
+- `GET /projects/{project_id}/media/tracks/{track}/preview`: Return 5 s of one audio track from the middle of the recording (AAC in M4A, cached). → 200 `object`
 
 ## Models
 
