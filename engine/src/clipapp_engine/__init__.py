@@ -1,0 +1,1 @@
+"""ClipApp local processing engine."""

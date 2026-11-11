@@ -1,0 +1,11 @@
+samples/
+.venv/
+node_modules/
+target/
+dist/
+__pycache__/
+*.db
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+*.tsbuildinfo
