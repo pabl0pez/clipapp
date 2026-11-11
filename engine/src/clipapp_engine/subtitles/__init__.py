@@ -1,1 +1,1 @@
-"""ClipApp engine: subtitles package (implemented in a later stage)."""
+"""Subtitles: layout, styles and .ass/.srt generation for clips."""

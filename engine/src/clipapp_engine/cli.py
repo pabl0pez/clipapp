@@ -26,9 +26,13 @@ from clipapp_engine.silence.detect import detect_silences, wav_duration_s
 from clipapp_engine.silence.noise import ThresholdSuggestion, suggest_threshold
 from clipapp_engine.silence.ranges import Range, SilenceStats, compute_keep_ranges, stats
 from clipapp_engine.silence.settings import SilenceSettings
+from clipapp_engine.subtitles.ass import build_ass
+from clipapp_engine.subtitles.srt import build_srt
+from clipapp_engine.subtitles.style import TEMPLATES
 from clipapp_engine.transcribe.device import pick_device
 from clipapp_engine.transcribe.download import ensure_model
 from clipapp_engine.transcribe.glossary import Glossary
+from clipapp_engine.transcribe.transcript import Transcript
 from clipapp_engine.transcribe.whisper import transcribe_range
 
 app = typer.Typer(help="ClipApp local engine.", no_args_is_help=True)
@@ -348,3 +352,44 @@ def transcribe_cmd(  # noqa: PLR0913, PLR0917
         f"[dim]{len(transcript.words)} words · {transcript.model} · "
         f"{time.perf_counter() - began:.1f} s[/]"
     )
+
+
+ASPECTS = {"9:16": (1080, 1920), "16:9": (1920, 1080)}
+
+
+@app.command("subs")
+def subs_cmd(  # noqa: PLR0913, PLR0917
+    transcript_file: Annotated[
+        Path | None, typer.Option("--transcript", help="Transcript JSON from `transcribe --json`.")
+    ] = None,
+    style: str = typer.Option("shorts", "--style", help="Template name (see --list-styles)."),
+    aspect: str = typer.Option("9:16", "--aspect", help="9:16 (1080x1920) or 16:9 (1920x1080)."),
+    clip_start: float = typer.Option(0.0, "--clip-start", help="Clip start in seconds."),
+    output: Annotated[
+        Path | None, typer.Option("-o", "--output", help="Output .ass or .srt file.")
+    ] = None,
+    list_styles: bool = typer.Option(False, "--list-styles", help="List templates and exit."),
+) -> None:
+    """Turn a transcript into styled .ass subtitles (or .srt) for one clip."""
+    if list_styles:
+        for key, tpl in TEMPLATES.items():
+            typer.echo(f"{key}	{tpl.name} · {tpl.font} · {tpl.mode}")
+        return
+    err = Console(stderr=True)
+    if transcript_file is None or output is None:
+        err.print("[red]error:[/] --transcript and -o are required")
+        raise typer.Exit(2)
+    if style not in TEMPLATES or aspect not in ASPECTS:
+        err.print(f"[red]error:[/] unknown style or aspect ({', '.join(TEMPLATES)}; 9:16, 16:9)")
+        raise typer.Exit(2)
+    try:
+        transcript = Transcript.model_validate_json(transcript_file.read_text(encoding="utf-8"))
+        if output.suffix.lower() == ".srt":
+            output.write_text(build_srt(transcript, TEMPLATES[style], clip_start), "utf-8")
+        else:
+            width, height = ASPECTS[aspect]
+            build_ass(transcript, TEMPLATES[style], width, height, clip_start).save(str(output))
+    except (OSError, ValueError) as exc:
+        err.print(f"[red]error:[/] {escape(str(exc))}")
+        raise typer.Exit(1) from exc
+    typer.echo(str(output))

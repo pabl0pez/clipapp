@@ -60,6 +60,7 @@ Engine (run from `engine/`):
 - CLI: `uv run clipapp-engine --help`, `uv run clipapp-engine doctor [--json]`
 - Slow tests (real model, need `samples/voz.wav`): `uv run pytest -m slow`
 - Sample media: `uv run python ../scripts/make_samples.py`
+- Subtitle previews (one PNG per template/aspect in `samples/previews/`): `uv run python ../scripts/preview_styles.py [--video f.mkv]`
 
 App (run from `app/`):
 - Dev: `npm run tauri dev`
