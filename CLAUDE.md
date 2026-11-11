@@ -58,6 +58,7 @@ Engine (run from `engine/`):
 - Lint: `uv run ruff check .` and `uv run ruff format --check .`
 - Types: `uv run mypy`
 - CLI: `uv run clipapp-engine --help`, `uv run clipapp-engine doctor [--json]`
+- Slow tests (real model, need `samples/voz.wav`): `uv run pytest -m slow`
 - Sample media: `uv run python ../scripts/make_samples.py`
 
 App (run from `app/`):
@@ -67,4 +68,6 @@ App (run from `app/`):
 - Format: `npm run format`
 
 Env: `CLIPAPP_FFMPEG_DIR` overrides where `ffmpeg.exe`/`ffprobe.exe` are found (otherwise PATH).
+`CLIPAPP_WHISPER_MODEL`, `CLIPAPP_WHISPER_DEVICE` (`cuda`/`cpu`), `CLIPAPP_WHISPER_COMPUTE_TYPE`
+force the transcription setup (otherwise auto-detected). GPU needs `uv sync --extra cuda`.
 Data dir: `%APPDATA%/clipapp` with `cache/`, `models/`, `logs/`.

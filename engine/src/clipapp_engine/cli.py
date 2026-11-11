@@ -2,6 +2,7 @@
 
 import json
 import logging
+import time
 import wave
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,8 +26,14 @@ from clipapp_engine.silence.detect import detect_silences, wav_duration_s
 from clipapp_engine.silence.noise import ThresholdSuggestion, suggest_threshold
 from clipapp_engine.silence.ranges import Range, SilenceStats, compute_keep_ranges, stats
 from clipapp_engine.silence.settings import SilenceSettings
+from clipapp_engine.transcribe.device import pick_device
+from clipapp_engine.transcribe.download import ensure_model
+from clipapp_engine.transcribe.glossary import Glossary
+from clipapp_engine.transcribe.whisper import transcribe_range
 
 app = typer.Typer(help="ClipApp local engine.", no_args_is_help=True)
+models_app = typer.Typer(help="Manage local Whisper models.", no_args_is_help=True)
+app.add_typer(models_app, name="models")
 
 
 @app.callback()
@@ -280,3 +287,64 @@ def prepare_cmd(
         size = (manifest_file.parent / name).stat().st_size
         table.add_row(name, f"{size / 1024**2:.2f} MiB")
     Console().print(table)
+
+
+@models_app.command("download")
+def models_download(
+    name: Annotated[str, typer.Argument(help="Model name, e.g. small or large-v3-turbo.")],
+    force: bool = typer.Option(False, "--force", help="Download again even if present."),
+) -> None:
+    """Download a Whisper model into the data folder (needed once; then works offline)."""
+    try:
+        folder = ensure_model(name, force)
+    except Exception as exc:  # network/HF errors have no common base class
+        Console(stderr=True).print(f"[red]error:[/] {escape(str(exc))}")
+        raise typer.Exit(1) from exc
+    typer.echo(str(folder))
+
+
+@app.command("transcribe")
+def transcribe_cmd(  # noqa: PLR0913, PLR0917
+    file: Annotated[Path, typer.Argument(help="Recording to transcribe.")],
+    start: Annotated[float, typer.Option("--start", help="Range start in seconds.")],
+    end: Annotated[float, typer.Option("--end", help="Range end in seconds.")],
+    track_mic: int = typer.Option(1, "--track-mic", help="0-based mic track (OBS mic track = 1)."),
+    model: str | None = typer.Option(None, "--model", help="Force a Whisper model."),
+    device: str | None = typer.Option(None, "--device", help="Force cuda or cpu."),
+    compute_type: str | None = typer.Option(None, "--compute-type", help="Force compute type."),
+    glossary_file: Annotated[
+        Path | None,
+        typer.Option("--glossary", help='JSON file: {"terms": [...], "replacements": {...}}.'),
+    ] = None,
+    as_json: bool = typer.Option(False, "--json", help="Print the transcript as JSON."),
+) -> None:
+    """Transcribe one range of the mic track in Spanish with word timestamps."""
+    err = Console(stderr=True)
+    began = time.perf_counter()
+    try:
+        glossary = (
+            Glossary.model_validate_json(glossary_file.read_text(encoding="utf-8"))
+            if glossary_file
+            else Glossary()
+        )
+        transcript = transcribe_range(
+            file,
+            track_mic,
+            start,
+            end,
+            glossary,
+            pick_device(model, device, compute_type),
+            lambda msg: err.print(f"[yellow]warning:[/] {escape(msg)}"),
+        )
+    except (*_ANALYSIS_ERRORS, RuntimeError) as exc:
+        err.print(f"[red]error:[/] {escape(str(exc))}")
+        raise typer.Exit(1) from exc
+    if as_json:
+        typer.echo(transcript.model_dump_json(indent=2))
+        return
+    console = Console()
+    console.print(escape(transcript.text) or "[dim](no speech)[/]")
+    console.print(
+        f"[dim]{len(transcript.words)} words · {transcript.model} · "
+        f"{time.perf_counter() - began:.1f} s[/]"
+    )
