@@ -581,3 +581,35 @@ def batch_cmd(  # noqa: PLR0913, PLR0917
     except (OSError, MediaError) as exc:
         raise _fail(str(exc), 1) from exc
     _export_all(file, specs, settings, output, glossary)
+
+
+@app.command("serve")
+def serve_cmd(
+    token: Annotated[str, typer.Option("--token", help="Per-session secret for every request.")],
+    port: int = typer.Option(0, "--port", help="Port on 127.0.0.1; 0 picks a free one."),
+) -> None:
+    """Run the local API; prints {"ready": true, "port": N} on stdout when it accepts requests."""
+    from clipapp_engine.api.server import serve  # noqa: PLC0415 (keeps other commands fast)
+
+    if not token:
+        raise _fail("--token must not be empty")
+    try:
+        serve(port, token)
+    except OSError as exc:
+        raise _fail(f"cannot listen on 127.0.0.1:{port}: {exc}", 1) from exc
+
+
+@app.command("openapi")
+def openapi_cmd(
+    output: Annotated[Path | None, typer.Option("-o", "--output", help="Output file.")] = None,
+    markdown: bool = typer.Option(False, "--markdown", help="Write docs/api.md style Markdown."),
+) -> None:
+    """Print (or write) the API's OpenAPI JSON, or its Markdown endpoint reference."""
+    from clipapp_engine.api.docs import api_markdown, openapi_schema  # noqa: PLC0415
+
+    schema = openapi_schema()
+    text = api_markdown(schema) if markdown else json.dumps(schema, indent=2) + "\n"
+    if output is None:
+        typer.echo(text, nl=False)
+    else:
+        output.write_text(text, encoding="utf-8", newline="\n")

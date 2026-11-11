@@ -10,7 +10,8 @@
     "tauri": "tauri",
     "lint": "eslint . && prettier --check .",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "gen:api": "uv --directory ../engine run clipapp-engine openapi -o ../app/openapi.json && openapi-typescript openapi.json -o src/api/schema.ts && prettier --write src/api/schema.ts"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
@@ -27,10 +28,16 @@
     "eslint": "^10.14.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.14.0",
+    "openapi-typescript": "^7.13.0",
     "prettier": "^3.9.10",
     "tailwindcss": "^4.3.5",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.72.2",
     "vite": "^8.0.16"
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
   }
 }

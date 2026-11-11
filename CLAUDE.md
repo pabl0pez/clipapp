@@ -60,6 +60,9 @@ Engine (run from `engine/`):
 - CLI: `uv run clipapp-engine --help`, `uv run clipapp-engine doctor [--json]`
 - Export clips: `uv run clipapp-engine clip <video> --start 2:00 --end 2:35 -o out/` or
   `uv run clipapp-engine batch <video> --clips clips.txt -o out/` (lines: `start end name`)
+- API server: `uv run clipapp-engine serve --port 0 --token <t>` (prints `{"ready": true, "port": N}`;
+  Swagger at `http://127.0.0.1:N/docs`, *Authorize* with the token)
+- API docs: `uv run clipapp-engine openapi --markdown -o ../docs/api.md` (a test fails if stale)
 - Slow tests (real model, need `samples/voz.wav`): `uv run pytest -m slow`
 - Sample media: `uv run python ../scripts/make_samples.py`
 - Subtitle previews (one PNG per template/aspect in `samples/previews/`): `uv run python ../scripts/preview_styles.py [--video f.mkv]`
@@ -69,6 +72,7 @@ App (run from `app/`):
 - Lint: `npm run lint`
 - Typecheck: `npm run typecheck`
 - Format: `npm run format`
+- API types: `npm run gen:api` (regenerates `src/api/schema.ts` from the engine's OpenAPI)
 
 Env: `CLIPAPP_FFMPEG_DIR` overrides where `ffmpeg.exe`/`ffprobe.exe` are found (otherwise PATH).
 `CLIPAPP_WHISPER_MODEL`, `CLIPAPP_WHISPER_DEVICE` (`cuda`/`cpu`), `CLIPAPP_WHISPER_COMPUTE_TYPE`

@@ -9,6 +9,7 @@ from clipapp_engine.export.clip import ClipOptions, render_clip, validate_range
 from clipapp_engine.media.probe import probe
 from clipapp_engine.transcribe.device import DeviceChoice
 from clipapp_engine.transcribe.glossary import Glossary
+from clipapp_engine.transcribe.transcript import Transcript
 from clipapp_engine.transcribe.whisper import transcribe_range
 
 TRANSCRIBE_SHARE = 0.3  # progress share of transcription (it reports no progress of its own)
@@ -41,6 +42,7 @@ def export_clip(  # noqa: PLR0913, PLR0917
     on_progress: Callable[[float], None] | None = None,
     cancel_event: threading.Event | None = None,
     on_warning: Callable[[str], None] | None = None,
+    transcript: Transcript | None = None,
 ) -> Path:
     """Transcribe the clip's mic audio (when it has a style), then render it into ``out_dir``.
 
@@ -57,6 +59,7 @@ def export_clip(  # noqa: PLR0913, PLR0917
         on_progress: Combined progress in [0, 1].
         cancel_event: Cancels the render.
         on_warning: Receives transcription degradation notices.
+        transcript: Words to burn (e.g. user-edited); given, transcription is skipped.
 
     Returns:
         The written MP4.
@@ -68,8 +71,8 @@ def export_clip(  # noqa: PLR0913, PLR0917
     """
     validate_range(options.start_s, options.end_s, probe(media).duration_s)
     report = on_progress or (lambda _p: None)
-    transcript, share = None, 0.0
-    if options.style is not None:
+    share = 0.0
+    if options.style is not None and transcript is None:
         transcript = transcribe_range(
             media, options.mic_track, options.start_s, options.end_s, glossary, choice, on_warning
         )
