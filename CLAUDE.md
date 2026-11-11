@@ -9,7 +9,7 @@ ClipApp is a desktop app for personal use (may be published later) that processe
 
 No cloud AI, no paid APIs, no telemetry. Everything runs locally and free.
 
-## Stack (do not change without asking)
+## Stack (change it when the app needs it; justify in the stage summary)
 - `engine/`: Python 3.12 with uv. Typer (CLI), FastAPI + uvicorn (local API), pydantic v2, numpy,
   faster-whisper, pysubs2, SQLite (stdlib `sqlite3`). FFmpeg and ffprobe via subprocess.
 - `app/`: Tauri 2 + React + TypeScript strict + Vite, Tailwind, Zustand, TanStack Query,
@@ -42,10 +42,11 @@ No cloud AI, no paid APIs, no telemetry. Everything runs locally and free.
 - FFmpeg: always argument lists (never shell strings), progress via `-progress pipe:1`, paths with
   spaces and accents supported.
 - Tests use synthetic media generated with FFmpeg lavfi, never files from `samples/`.
-- Do not add dependencies or change the architecture without asking.
+- Add dependencies or change the architecture when needed to make the app work, without asking;
+  list every such change and its reason in the stage summary.
 
 ## Stage workflow
-1. Present a plan (files, functions, tests) and wait for approval.
+1. Present a short plan (files, functions, tests), then implement it without waiting for approval.
 2. Implement only the stage scope, nothing from future stages.
 3. Run tests and linters and fix until they pass.
 4. Finish with: summary, commands to try it by hand, and pending items. Then commit with message

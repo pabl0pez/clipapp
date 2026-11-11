@@ -4,7 +4,7 @@ import subprocess
 import sys
 import threading
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 
 from clipapp_engine.config import ffmpeg_path
 from clipapp_engine.media.errors import FFmpegCancelledError, FFmpegError
@@ -27,11 +27,23 @@ def _parse_out_time_s(line: str) -> float | None:
         return None
 
 
+def _pump_lines(
+    stream: Iterable[str], tail: deque[str], on_line: Callable[[str], None] | None
+) -> None:
+    """Keep the last lines of a stream in ``tail`` and pass each one to ``on_line``."""
+    for raw in stream:
+        line = raw.rstrip()
+        tail.append(line)
+        if on_line is not None:
+            on_line(line)
+
+
 def run_ffmpeg(
     args: list[str],
     duration_s: float,
     on_progress: Callable[[float], None] | None = None,
     cancel_event: threading.Event | None = None,
+    on_stderr_line: Callable[[str], None] | None = None,
 ) -> None:
     """Run ffmpeg to completion, reporting progress and honoring cancellation.
 
@@ -41,6 +53,8 @@ def run_ffmpeg(
         duration_s: Expected output duration, used to scale progress to 0..1.
         on_progress: Called with non-decreasing values in [0, 1]; gets 1.0 on success.
         cancel_event: When set, ffmpeg is terminated (killed after 3 s if still alive).
+        on_stderr_line: Called from a reader thread with every stderr line (newline stripped),
+            for filters that log results there (e.g. ``silencedetect``).
 
     Raises:
         FFmpegCancelledError: the run was cancelled.
@@ -72,7 +86,7 @@ def run_ffmpeg(
 
     tail: deque[str] = deque(maxlen=STDERR_LINES)
     stderr = proc.stderr
-    reader = threading.Thread(target=lambda: tail.extend(line.rstrip() for line in stderr))
+    reader = threading.Thread(target=_pump_lines, args=(stderr, tail, on_stderr_line))
     reader.start()
 
     cancelled = threading.Event()

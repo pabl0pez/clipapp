@@ -4,6 +4,7 @@ version = "0.0.1"
 description = "Local processing engine for ClipApp"
 requires-python = "==3.12.*"
 dependencies = [
+    "numpy>=2.5.4",
     "pydantic>=2.10",
     "typer>=0.12",
 ]

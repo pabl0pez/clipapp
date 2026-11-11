@@ -2,11 +2,13 @@
 
 import shutil
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
 from clipapp_engine.config import ffmpeg_path
+from clipapp_engine.media.audio import extract_track_wav
 
 DURATION_S = 20
 MIC_SILENCES = ((3, 5), (12, 15))
@@ -51,7 +53,7 @@ def av_sample(media_dir: Path) -> Path:
         "-f",
         "lavfi",
         "-i",
-        f"anoisesrc=color=pink:amplitude=0.05:sample_rate=48000:duration={DURATION_S}",
+        f"anoisesrc=color=pink:amplitude=0.3:sample_rate=48000:duration={DURATION_S}",
         "-filter_complex",
         graph,
         "-map",
@@ -95,3 +97,22 @@ def accented_sample(av_sample: Path, media_dir: Path) -> Path:
     folder = media_dir / "Grabación de ñandú"
     folder.mkdir()
     return Path(shutil.copy(av_sample, folder / "clip ó.mkv"))
+
+
+@pytest.fixture(scope="session", autouse=True)
+def isolated_appdata(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
+    """Keep the engine cache out of the real %APPDATA% during tests."""
+    root = tmp_path_factory.mktemp("appdata")
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("APPDATA", str(root))
+        yield root
+
+
+@pytest.fixture(scope="session")
+def mic_wav(av_sample: Path) -> Path:
+    return extract_track_wav(av_sample, 1)
+
+
+@pytest.fixture(scope="session")
+def mix_wav(av_sample: Path) -> Path:
+    return extract_track_wav(av_sample, 0)
